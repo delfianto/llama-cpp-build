@@ -1,4 +1,4 @@
-# ik_llama.cpp-zen5
+# ik_llama.cpp-docker
 
 This repository provides a bleeding-edge, highly specialized build configuration for `ik_llama.cpp` (a fork of `llama.cpp`), specifically optimized for **AMD Ryzen 9 9950X (Zen 5)** processors and modern **NVIDIA GPUs (RTX 30 series and higher)**.
 
@@ -6,7 +6,7 @@ It serves dual purposes:
 1. **Arch Linux Package**: A dynamically versioned PKGBUILD for native host installation.
 2. **Docker Sidecar**: A hyper-optimized container image designed to run as an OpenWebUI sidecar backend.
 
-Both artifacts are built automatically every day at midnight (UTC) via GitHub Actions, pulling the absolute latest commits from the upstream `ik_llama.cpp` repository.
+Both artifacts are built via GitHub Actions on every push to `main`, or manually via `workflow_dispatch`, pulling the absolute latest commits from the upstream `ik_llama.cpp` repository.
 
 ---
 
