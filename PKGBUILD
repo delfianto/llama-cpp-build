@@ -4,8 +4,6 @@ pkgname=ik-llama.cpp-zen5-git
 _pkgname="ik_llama.cpp"
 pkgver=t0002.r868.bbc7de47
 pkgrel=1
-_build_number=0
-_commit_id=
 pkgdesc="Port of Facebook's LLaMA model in C/C++ (with NVIDIA CUDA optimizations) - fork by ikawrakow"
 arch=(x86_64 armv7h aarch64)
 url='https://github.com/ikawrakow/ik_llama.cpp'
@@ -48,10 +46,11 @@ pkgver() {
 
 prepare() {
   cd "${_pkgname}" || exit
-  # Get the latest commit hash
-  _commit_id=$(git rev-parse HEAD)
-  _build_number=$(git rev-list --count HEAD)
-  
+  # Version info is not passed on the cmake command line: cmake/build-info.cmake
+  # sets BUILD_NUMBER/BUILD_COMMIT with plain set() calls that shadow the cache,
+  # so -D flags for them are silently ignored. It derives them from git instead,
+  # which works here because this tree keeps its .git.
+
   # Patch rpc-server for updated ggml_backend_cuda_init signature
   sed -i 's/ggml_backend_cuda_init(device, nullptr)/ggml_backend_cuda_init(device, nullptr, nullptr)/g' examples/rpc/rpc-server.cpp
   cd ..
@@ -76,7 +75,6 @@ build() {
     -DCMAKE_INSTALL_PREFIX='/usr'
     -DBUILD_SHARED_LIBS=ON
     -DLLAMA_BUILD_TESTS=OFF
-    -DLLAMA_USE_SYSTEM_GGML=OFF
     -DGGML_ALL_WARNINGS=OFF
     -DGGML_ALL_WARNINGS_3RD_PARTY=OFF
     -DGGML_BUILD_EXAMPLES=OFF
@@ -86,8 +84,6 @@ build() {
     -DGGML_CUDA=ON
     -DGGML_CUDA_FA_ALL_QUANTS=ON
     -DLLAMA_BUILD_SERVER=ON
-    -DLLAMA_BUILD_NUMBER="${_build_number}"
-    -DLLAMA_BUILD_COMMIT="${_commit_id}"
     -DLLAMA_OPENSSL=ON
     -DGGML_NCCL=ON
     -Wno-dev
