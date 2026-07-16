@@ -37,8 +37,8 @@ So: real gains, narrow scope, no magic. Compiling `-march=native` has never resc
 ```bash
 just            # list recipes
 just check      # has upstream moved since each image was built?
-just cpu        # build ghcr.io/delfianto/ik_llama.cpp-zen5:cpu
-just cuda       # build ghcr.io/delfianto/ik_llama.cpp-zen5:cuda
+just cpu        # build ghcr.io/delfianto/ik_llama.cpp:cpu
+just cuda       # build ghcr.io/delfianto/ik_llama.cpp:cuda
 just all        # both
 just pkg        # the Arch package, via makepkg
 ```
@@ -85,7 +85,7 @@ IK_LLAMA_REF=bbc7de47 just cuda
 Images are tagged into `ghcr.io/delfianto` but nothing pushes on its own:
 
 ```bash
-docker push ghcr.io/delfianto/ik_llama.cpp-zen5:cuda
+docker push ghcr.io/delfianto/ik_llama.cpp:cuda
 ```
 
 There is no `:latest`. With two variants it would have to mean one of them, and whichever it meant would be wrong half the time.
@@ -108,7 +108,7 @@ Drop-in for any OpenAI-compatible backend. The entrypoint reads:
 ```yaml
 services:
   llama-server-sidecar:
-    image: ghcr.io/delfianto/ik_llama.cpp-zen5:cuda
+    image: ghcr.io/delfianto/ik_llama.cpp:cuda
     restart: unless-stopped
     ports:
       - "8080:8080"

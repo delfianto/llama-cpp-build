@@ -9,7 +9,7 @@ variable "REGISTRY" {
 }
 
 variable "IMAGE" {
-  default = "ik_llama.cpp-zen5"
+  default = "ik_llama.cpp"
 }
 
 # Commit the source tree in .build/src was extracted from. Recorded as an image
@@ -42,7 +42,7 @@ target "_common" {
   }
   labels = {
     "org.opencontainers.image.source"   = "https://github.com/ikawrakow/ik_llama.cpp"
-    "org.opencontainers.image.title"    = "ik_llama.cpp-zen5"
+    "org.opencontainers.image.title"    = "ik_llama.cpp"
     "org.opencontainers.image.revision" = IK_LLAMA_SHA
   }
 }

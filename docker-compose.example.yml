@@ -2,7 +2,7 @@ services:
   # This is your highly optimized bleeding-edge sidecar.
   # Swap the tag for :cpu to run the CUDA-free build (drop the `deploy:` block too).
   llama-server-sidecar:
-    image: ghcr.io/delfianto/ik_llama.cpp-zen5:cuda
+    image: ghcr.io/delfianto/ik_llama.cpp:cuda
     container_name: llama-server-sidecar
     restart: unless-stopped
     ports:

@@ -1,4 +1,4 @@
-# Local build orchestration for ik_llama.cpp-zen5.
+# Local build orchestration for ik_llama.cpp.
 #
 # The bare mirror at ./ik_llama.cpp is the single source of truth and is shared
 # with makepkg (PKGBUILD's `source=git+...` populates the same directory), so
@@ -7,7 +7,7 @@
 mirror   := "ik_llama.cpp"
 upstream := "https://github.com/ikawrakow/ik_llama.cpp.git"
 srcdir   := ".build/src"
-image    := "ghcr.io/delfianto/ik_llama.cpp-zen5"
+image    := "ghcr.io/delfianto/ik_llama.cpp"
 ref      := env_var_or_default("IK_LLAMA_REF", "main")
 force    := env_var_or_default("FORCE", "0")
 
