@@ -1,8 +1,8 @@
 # Maintainer: Bink
 : ${aur_llamacpp_build_universal:=false}
-pkgname=ik-llama.cpp-zen5-git
+pkgname=ik-llama.cpp-cuda-git
 _pkgname="ik_llama.cpp"
-pkgver=t0002.r868.bbc7de47
+pkgver=t0002.r912.1fddd12b
 pkgrel=1
 pkgdesc="Port of Facebook's LLaMA model in C/C++ (with NVIDIA CUDA optimizations) - fork by ikawrakow"
 arch=(x86_64 armv7h aarch64)
