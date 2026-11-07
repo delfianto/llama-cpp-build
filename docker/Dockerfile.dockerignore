@@ -1,8 +1,6 @@
-# The root context only needs the entrypoint and optional patch; upstream arrives
-# through the `ikllama` named context (see docker/bake.hcl). Without this, the
-# source cache and makepkg trees would ship to the daemon on every build.
 *
+!.cache/
+!.cache/docker/
+!.cache/docker/llama.cpp-cuda-git-*.pkg.tar.zst
 !docker/
 !docker/entrypoint.sh
-!patches/
-!patches/fastmtp-qwen38-d2t.patch

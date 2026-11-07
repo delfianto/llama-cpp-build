@@ -1,250 +1,52 @@
-# ik_llama.cpp Build Recipe
+# llama.cpp for this machine
 
-Build scripts for [our experimental `ik_llama.cpp` fork](https://github.com/delfianto/ik_llama.cpp), compiled for exactly one machine: this one. Out the other end come an Arch package and two Docker images, all from a single source clone. The fork follows [ikawrakow's project](https://github.com/ikawrakow/ik_llama.cpp).
+Builds unpatched [upstream llama.cpp](https://github.com/ggml-org/llama.cpp) from current `master` HEAD for this workstation:
 
-Nothing here is portable, and that is the entire point. If you want binaries that run anywhere, upstream ships those and they are lovely. These are not those.
+- AMD Ryzen 9 9950X: GCC `-O3 -march=znver5 -mtune=znver5`, 512-bit vector preference, AVX-512/VBMI/VNNI/BF16, OpenMP, and C/C++ LTO.
+- RTX 3060 + RTX 4080: CUDA **86-real;89-real**. Only SM 86 and SM 89 machine code; no PTX fallback or kernels for other GPU architectures.
+- CUDA Flash Attention with all supported KV quant combinations, CUDA graphs, and NCCL for multi-GPU work. Upstream chooses MMQ/cuBLAS kernels at runtime.
+- Server, CLI, benchmark, quantization, and upstream `mtmd` multimodal library/tools. CPU support remains necessary for tokenization, sampling, and operations that cannot run on CUDA.
 
-## Targets
+No portable binaries, CPU-only variants, alternate accelerator backends, downstream patches, or fork synchronization. The canonical build flags are in [arch/build-config.sh](arch/build-config.sh), shared by the package and container.
 
-Two hard constraints are baked in. They are constraints, not achievements:
+Install build dependencies on Arch:
 
-| | Target | Consequence |
-| --- | --- | --- |
-| **CPU** | `znver5` (Zen 5) | `SIGILL` on anything older. Not "slower" — *dead*. |
-| **GPU** | CUDA SM `86` / `89` / `90` (Ampere, Ada, Hopper) | No kernels for your Pascal card. It will not fall back. It will simply not work. |
-
-Note that "Zen 5" is an **architecture**, not a shopping list. Any Zen 5 part will do. The binary neither knows nor cares which one you bought, and `-march=znver5` has never once been impressed by a model number.
-
-## What the flags actually buy you
-
-The build turns on `-O3 -march=znver5 -mtune=znver5`, the full AVX-512 spread (`VBMI`, `VNNI`, `BF16`), and LTO. All of it applies to **both** image variants — the CPU image is exactly as architecture-locked as the CUDA one, just smaller and worse at matrix multiplication.
-
-Now the part every other README leaves out: **this is worth a few percent, and only in the right places.**
-
-Token generation on CPU is memory-bandwidth-bound. Your cores spend most of their day waiting on RAM, and a compiler flag has no opinion about DDR5 latency. Prompt processing is compute-bound and genuinely enjoys AVX-512, so you will see it there. Everything else is rounding error.
-
-So: real gains, narrow scope, no magic. Compiling `-march=native` has never rescued a machine from its own memory subsystem, and it will not start today. Zen 5 is a perfectly nice place to be — this just declines to leave anything on the table while you are there.
-
-## Building
-
-`just` is the front door. There are two variants, cut from
-[`docker/Dockerfile`](docker/Dockerfile) by a `VARIANT` build arg:
-
-| Tag | Runtime base | Unpacked / pull |
-| --- | --- | --- |
-| `:cuda` | `nvidia/cuda:13.3.0-runtime-ubuntu24.04` | 4.03 GB / 2.94 GB |
-| `:cpu` | `ubuntu:24.04` | 0.17 GB / 0.06 GB |
-
-```bash
-just            # list recipes
-just sync-upstream # sync the fork's main from ikawrakow/ik_llama.cpp
-just check      # does each image match the selected fork source?
-just docker cpu        # build ghcr.io/delfianto/ik_llama.cpp:cpu
-just docker cuda       # build ghcr.io/delfianto/ik_llama.cpp:cuda
-just docker        # both
-just pkg        # the Arch package, via makepkg
-just pkg install
-just patch-check # does the optional FastMTP patch still apply upstream?
-just doctor      # check the local toolchain and package metadata
-just verify      # doctor + patch applicability + Dockerfile checks
-just docker compose up -d
-just docker push # push both existing local image variants without rebuilding
+```sh
+sudo pacman -S --needed base-devel git just cmake ninja cuda nccl openssl
 ```
 
-Everything generated or downloaded stays under `.cache/`: `ik_llama.cpp` is the
-shared shallow upstream clone, `build/` is makepkg's work area, `docker/` is Docker's
-materialized source context, and `pkg/` holds finished Arch packages. `just clean`
-removes Docker temporaries; `just clobber` removes all build and package output
-while retaining the upstream clone.
+GCC must understand `znver5` and be supported by the installed CUDA toolkit. The current machine has GCC 16.2 and CUDA 13.4; compiler version checks stay enabled.
 
-### Repository layout
-
-```text
-docker/     Dockerfile, Bake definition, entrypoint, Compose example
-arch/       PKGBUILD, .SRCINFO, service and default configuration
-patches/    shared optional patches and their maintenance notes
-justfile    the only build and maintenance entry point
+```sh
+just pkg          # fetch upstream HEAD and build
+just pkg install  # fetch/build HEAD and install with pacman
+just install      # alias for just pkg install
+just verify       # syntax, formatting, package metadata
 ```
 
-BuildKit only builds stages the chosen variant can actually reach, so `just docker cpu` never drags down the CUDA base images. The 24x size gap between the two is almost entirely NVIDIA's runtime plus **1.37 GB of statically-linked device code** — of which `llama-cli` is a ~678 MB near-duplicate of `llama-server`, carried purely so you can poke at things inside the container. Worth it, probably. Nobody has ever checked.
+Packages go to `.cache/pkg/`, build trees to `.cache/build/`, and the shared shallow Git cache to `.cache/llama.cpp-git/`. `just fetch` refreshes that cache. `makepkg --holdver` then builds precisely that fetched commit, with its hash included in the package version and binary build info. The PKGBUILD also works directly with `cd arch && makepkg`; that path uses makepkg's normal VCS fetching.
 
-> `docker images` will insist these are 6.97 GB and 231 MB. It is lying — or rather, containerd's image store is counting the compressed blobs *and* the unpacked snapshots and adding them together, which is a bold interpretation of the word "size". The table above is real.
+Compilation defaults to 16 concurrent jobs to leave memory for CUDA template compilation and other running workloads. Override with `BUILD_JOBS=8 just pkg`. `just clean` removes builds and packages while keeping downloaded source.
 
-### There is no CI, and that is deliberate
+The build uses current upstream APIs and options from its [build documentation](https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md) and [CUDA CMake configuration](https://github.com/ggml-org/llama.cpp/blob/master/ggml/src/ggml-cuda/CMakeLists.txt). HEAD moves; the recorded commit identifies what was actually built. These flags target this hardware, but performance still depends on the model, quantization, batch/context size, and GPU split; no benchmark speedup is assumed.
 
-A Zen 5 + LTO + CUDA build on a shared GitHub runner took the better part of forever and produced binaries **the runner itself could not execute**. Paying a stranger's CPU to emit instructions it cannot run, slowly, is a form of performance art this repository has retired. Everything builds on the machine that runs it. A cold `:cuda` build is ~20–25 minutes, and the LTO link is most of the tail.
+Run the installed server:
 
-### One clone, shared with makepkg
-
-`.cache/ik_llama.cpp` is a depth-one bare clone of the fork's `main` and the single source
-of truth. Cloning and fetching use `--depth=1 --single-branch --branch main`
-and disable tags. Existing full-history caches are replaced by a shallow clone;
-updates discard old cached history. Builds use the latest tip of the selected branch.
-Set `IK_LLAMA_REF` to test another branch in the fork; it must be a branch name,
-not a tag or commit SHA. Docker and Arch use the same selection:
-
-```bash
-IK_LLAMA_REF=moe-cache just docker cuda
-IK_LLAMA_REF=moe-cache just pkg
+```sh
+llama-server -m /path/model.gguf -ngl 99 -fa on -t 16 --jinja --host 127.0.0.1 --port 8080
 ```
 
-That branch contains the experimental, single-token CUDA MoE cache. Use
-`--cpu-moe -no-fug --moe-cache-mib 1024` to keep eligible experts in RAM and
-allocate a 1 GiB total cache. See [support limits and measurements](experiments/moe-cache-results.md)
-and the [port plan](patches/moe-cache-port-plan.md).
+For vision, add `--mmproj /path/matching-mmproj.gguf`. Keep `--jinja` enabled for models with custom chat templates. The projector must match the model. `llama-mtmd-cli` is included for direct image/audio testing; the exact supported inputs depend on the upstream model implementation.
 
-`just pkg` exports that same selected commit as a local source archive for makepkg,
-so its Git source handler cannot create a second full-history mirror. Package
-versions and Docker build numbers use the commit timestamp (package versions
-also include the short commit hash), without requiring tags or commit counts.
+The package includes an optional systemd unit. Set `LLAMA_ARGS` in `/etc/conf.d/llama.cpp` before enabling `llama.cpp.service`. Installing a package does not restart an already running server.
 
-Each image build runs `git archive <sha>` from that mirror into
-`.cache/docker/src`, handed to the Dockerfile as a named context. No network,
-no re-clone, no `.git` in the image. `git archive` is byte-deterministic — mtimes
-come from the commit — so an unchanged commit re-extracts identically and the
-`COPY` layer still cache-hits.
-
-Because the source arrives as a named context, a bare `docker build .` no longer works. Use `just`.
-
-### Tracking upstream
-
-Run `just sync-upstream` to fast-forward the fork's remote `main` from
-`ikawrakow/ik_llama.cpp`. It requires the GitHub CLI (`gh`) authenticated with
-write access to the fork and refuses divergent history. The command always targets
-`main`, regardless of `IK_LLAMA_REF`; subsequent builds fetch the updated fork.
-
-The [Sync IK fork workflow](.github/workflows/sync-upstream.yml) runs the same
-sync every six hours, at 00:17, 06:17, 12:17 and 18:17 UTC. It also supports
-manual runs from the Actions tab. Set this build repo's `IK_FORK_SYNC_TOKEN`
-Actions secret to a fine-grained PAT for `delfianto/ik_llama.cpp`, with Contents
-and Workflows write permissions, and replace the secret when the token expires.
-GitHub may delay scheduled runs or disable the schedule after 60 days without
-repository activity.
-
-Every image records its commit as an `org.opencontainers.image.revision` label, so it is self-describing and there is no stamp file waiting to quietly desynchronize. `just check` fetches the mirror and diffs upstream against that label:
-
-```console
-$ just check
-fork main @ 1fddd12ba861  (18 hours ago -- New op: ggml_sum_rows_ext (#2132))
-
-  cpu:  up to date
-  cuda: STALE at bbc7de47c1a2
+```sh
+just docker       # build the same native package into one Arch-based CUDA image
+just compose up -d
 ```
 
-Builds skip themselves when the image already matches upstream. Override with `FORCE=1`:
+Edit [docker/compose.example.yml](docker/compose.example.yml) with the model and optional projector paths. The container uses the package compiled on this host, exposes both GPUs, and defaults to 16 threads and Flash Attention. It requires NVIDIA Container Toolkit on the host. Container dependencies follow Arch's current repositories. Nothing is pushed to a registry automatically.
 
-```bash
-FORCE=1 just docker cuda
-```
+Container environment: `MODEL_PATH` (required), `MMPROJ_PATH` (optional), `CTX_SIZE` (8192), `N_GPU_LAYERS` (-1), `THREADS` (16), `HOST` (0.0.0.0), `PORT` (8080). Additional command arguments are passed directly to `llama-server`.
 
-`ccache` is mounted per variant, so bumping upstream a few commits recompiles a small slice rather than the whole tree. The LTO link still runs in full every time, because LTO is like that.
-
-### Publishing
-
-Images are tagged into `ghcr.io/delfianto` but nothing pushes on its own:
-
-```bash
-just docker       # build both images first
-just docker push  # push the existing local images
-```
-
-There is no `:latest`. With two variants it would have to mean one of them, and whichever it meant would be wrong half the time.
-
-## Running it (OpenWebUI sidecar)
-
-Drop-in for any OpenAI-compatible backend. The entrypoint reads:
-
-| Variable | Default | Notes |
-| --- | --- | --- |
-| `MODEL_PATH` | — | Required. |
-| `MTP_MODEL_PATH` | unset | Loads an external MTP companion with `--model-draft`. |
-| `MTP_DRAFT_N` | `3` | MTP lookahead depth (`n_max`). |
-| `CTX_SIZE` | `8192` | |
-| `N_GPU_LAYERS` | `-1` | Ignored by `:cpu`, which has no GPU to offload to. |
-| `THREADS` | `nproc` | |
-| `HOST` / `PORT` | `0.0.0.0` / `8080` | |
-| `EXTRA_ARGS` | unset | Passed through verbatim, word-split, no quoting. Be nice. |
-
-```yaml
-services:
-  llama-server-sidecar:
-    image: ghcr.io/delfianto/ik_llama.cpp:cuda
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./models:/models
-    environment:
-      - MODEL_PATH=/models/gemma-4-main-qat.gguf
-      - MTP_MODEL_PATH=/models/gemma-4-draft-mtp.gguf
-      - CTX_SIZE=8192
-      - N_GPU_LAYERS=-1
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-```
-
-For `:cpu`, use the same block minus the `deploy:` section. See
-[`docker/compose.example.yml`](docker/compose.example.yml) for a full
-stack with OpenWebUI, or run it through `just docker compose up -d`.
-
-Current `ik_llama.cpp` supports normal embedded Qwen3.5/3.8 MTP and standalone
-full-vocabulary companions without a downstream patch. HauhauCS FastMTP is a
-different compact companion: its output vocabulary is trimmed to 32K and a
-`d2t` tensor maps those logits back to the target vocabulary. Upstream does not
-consume that tensor yet, so the small compatibility patch remains experimental
-and disabled in normal builds. To opt in, build with:
-
-```bash
-EXPERIMENTAL_FASTMTP=1 just docker cuda
-# Arch package: EXPERIMENTAL_FASTMTP=1 just pkg
-```
-
-The flag defaults to `0`. `just check` records whether an image is patched and
-rebuilds when the selected mode or patch changes.
-
-The compatibility patch is adapted from the
-[HauhauCS Qwen3.8 FastMTP release](https://huggingface.co/HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF).
-With an opted-in build, pair any compatible target quant with its shared 32K
-companion:
-
-```yaml
-environment:
-  - MODEL_PATH=/models/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf
-  - MTP_MODEL_PATH=/models/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-FastMTP-32K.gguf
-  - MTP_DRAFT_N=3
-  - CTX_SIZE=204800
-  - EXTRA_ARGS=--parallel 1 --split-mode none --no-mmap
-```
-
-One trap worth naming: on `:cuda` the weights live in VRAM, so the container's RAM footprint is small and a tight memory limit looks fine. Move that same model to `:cpu` and the weights land in host RAM — with `--mlock`, permanently — and the limit you never thought about becomes an OOM kill at load. Size it for the model, not for what the GPU was politely hiding from you.
-
-## Arch package
-
-```bash
-just pkg
-just pkg install
-```
-
-`just pkg install` installs the existing package from `.cache/pkg` when available,
-or builds and installs it if missing. `just pkg` rebuilds the package.
-Packages land in `.cache/pkg`; makepkg work trees stay in `.cache/build`.
-The package uses an archive from the shared shallow clone, so it will not re-clone. Same
-architecture constraints apply, which is to say: it will not run on your laptop,
-your NAS, or that Xeon you were emotionally attached to in 2019.
-
-The package uses the current `gcc` and `g++` from `PATH`. Pin another installed
-toolchain when needed with `aur_llamacpp_cc=gcc-16 aur_llamacpp_cxx=g++-16 just
-pkg`.
-
-Because makepkg requires local sources beside its active PKGBUILD, `just pkg`
-creates a symlink-only recipe in `.cache/build/recipe`. The symlink targets remain
-the canonical files in `arch/` and `patches/`; Docker reads those same files
-directly.
-
-See [`patches/README.md`](patches/README.md) for the current patch audit and the MoE
-cache work worth watching.
+Validated on this workstation on 2026-11-07 at upstream commit `cf659f240b232e15700b1721bbb43c1d973c52e9` with GCC 16.2.1 and CUDA 13.4.92: package build/install-tree checks, inference with Flash Attention on each GPU, and a Gemma E2B image request through the packaged server's `/v1/chat/completions` endpoint (HTTP 200). `cuobjdump` confirmed only SM 86/89 code and no embedded PTX in `libggml-cuda`. Dockerfile and Compose configuration checks passed; the container image was not built during this validation.

@@ -1,54 +1,20 @@
 services:
-  # This is your highly optimized bleeding-edge sidecar.
-  # Swap the tag for :cpu to run the CUDA-free build (drop the `deploy:` block too).
-  llama-server-sidecar:
-    image: ghcr.io/delfianto/ik_llama.cpp:cuda
-    container_name: llama-server-sidecar
+  llama-server:
+    image: ghcr.io/delfianto/llama.cpp:cuda
     restart: unless-stopped
     ports:
       - "8080:8080"
     volumes:
-      # Map your local models directory into the container
-      - ./models:/models
+      - /mnt/sata1/models:/models:ro
     environment:
-      # The main quantized model (e.g., QAT compiled Gemma 4)
-      - MODEL_PATH=/models/gemma-4-main-qat.gguf
-      
-      # The draft model for MTP (Multi-Token Prediction) speculative decoding
-      - MTP_MODEL_PATH=/models/gemma-4-draft-mtp.gguf
-      
-      # Context size
-      - CTX_SIZE=8192
-      
-      # Offload all layers to GPU (-1) or split between Zen 5 and RTX
-      - N_GPU_LAYERS=-1
-      
-      # Threading mapped to your 9950X physical cores
-      - THREADS=16
-      
-      # Any extra args you want to pass raw to llama-server
-      # e.g. - EXTRA_ARGS=--flash-attn --fa
+      MODEL_PATH: /models/model.gguf
+      # MMPROJ_PATH: /models/mmproj.gguf
+      CTX_SIZE: "8192"
+      THREADS: "16"
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              count: all
               capabilities: [gpu]
-
-  # Example OpenWebUI service connecting to the sidecar
-  open-webui:
-    image: ghcr.io/open-webui/open-webui:main
-    container_name: open-webui
-    restart: always
-    ports:
-      - "3000:8080"
-    environment:
-      # Point OpenWebUI to your custom optimized sidecar
-      - OPENAI_API_BASE_URL=http://llama-server-sidecar:8080/v1
-      - OPENAI_API_KEY=sk-dummy-key
-    volumes:
-      - open-webui-data:/app/backend/data
-
-volumes:
-  open-webui-data:

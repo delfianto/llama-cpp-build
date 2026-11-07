@@ -1,167 +1,40 @@
 # Maintainer: Bink
-: ${aur_llamacpp_build_universal:=false}
-: ${aur_llamacpp_cc:=gcc}
-: ${aur_llamacpp_cxx:=g++}
-: ${EXPERIMENTAL_FASTMTP:=0}
-pkgname=ik-llama.cpp-cuda-git
-_pkgname="ik_llama.cpp"
-pkgver=1791358873.c069e89
+pkgname=llama.cpp-cuda-git
+pkgver=1794038487.cf659f2
 pkgrel=1
-pkgdesc="Port of Facebook's LLaMA model in C/C++ (with NVIDIA CUDA optimizations) - fork by ikawrakow"
-arch=(x86_64 armv7h aarch64)
-url='https://github.com/delfianto/ik_llama.cpp'
-license=('MIT')
-depends=(
-  cuda
-  curl
-  gcc-libs
-  glibc
-  nvidia-utils
-  nccl
-)
-makedepends=(
-  cmake
-  git
-  openssl
-)
-optdepends=(
-'python-numpy: needed for convert_hf_to_gguf.py'
-'python-safetensors: needed for convert_hf_to_gguf.py'
-'python-sentencepiece: needed for convert_hf_to_gguf.py'
-'python-pytorch: needed for convert_hf_to_gguf.py'
-'python-transformers: needed for convert_hf_to_gguf.py'
-)
-provides=("${_pkgname}")
-conflicts=("${_pkgname}" libggml ggml llama.cpp)
-source=(
-ik_llama.cpp.tar
-source-version
-fastmtp-qwen38-d2t.patch
-llama.cpp.conf
-llama.cpp.service
-)
+pkgdesc='Upstream llama.cpp HEAD for Ryzen 9950X and CUDA SM 86/89, including multimodal tools'
+arch=(x86_64)
+url='https://github.com/ggml-org/llama.cpp'
+license=(MIT)
+depends=(cuda gcc-libs glibc openssl nccl)
+makedepends=(cmake git ninja)
+optdepends=('ffmpeg: video input in multimodal tools')
+provides=(llama.cpp llama-cpp ggml ggml-cpu ggml-cuda libllama.so libggml.so)
+conflicts=(llama.cpp llama.cpp-cuda llama-cpp llama-cpp-git libggml ggml ggml-cpu ggml-cuda ggml-vulkan)
+backup=(etc/conf.d/llama.cpp)
+# The profile controls optimization and LTO, regardless of makepkg.conf defaults.
+options=(!buildflags !lto !debug)
+source=('llama.cpp-git::git+https://github.com/ggml-org/llama.cpp.git#branch=master'
+        build-config.sh llama.cpp.conf llama.cpp.service)
 sha256sums=('SKIP'
-'SKIP'
-'18a7262d22dc3e2cc987eae00990bb7a28cac14eeead741651a09d6dac201a2a'
-'53fa70cfe40cb8a3ca432590e4f76561df0f129a31b121c9b4b34af0da7c4d87'
-'0377d08a07bda056785981d3352ccd2dbc0387c4836f91fb73e6b790d836620d')
+            '3d1e740c044267bf94fa25f5d0b09f34480dc1173905801e7b33a1b97bf9c060'
+            '53fa70cfe40cb8a3ca432590e4f76561df0f129a31b121c9b4b34af0da7c4d87'
+            '0377d08a07bda056785981d3352ccd2dbc0387c4836f91fb73e6b790d836620d')
 
 pkgver() {
-  local timestamp commit
-  read -r timestamp commit < source-version
-  printf '%s.%s' "$timestamp" "$commit"
-}
-
-prepare() {
-  cd "${_pkgname}" || exit
-  # makepkg can reuse srcdir; remove a patch left by an earlier opted-in build
-  # before applying the mode selected for this invocation.
-  if git apply --reverse --check ../fastmtp-qwen38-d2t.patch >/dev/null 2>&1; then
-    git apply --reverse ../fastmtp-qwen38-d2t.patch
-  fi
-  case "${EXPERIMENTAL_FASTMTP}" in
-    0) printf '%s\n' 'Qwen3.8 FastMTP patch disabled' ;;
-    1)
-      git apply --check ../fastmtp-qwen38-d2t.patch
-      git apply ../fastmtp-qwen38-d2t.patch
-      ;;
-    *)
-      printf '%s\n' 'EXPERIMENTAL_FASTMTP must be 0 or 1' >&2
-      return 2
-      ;;
-  esac
-
-  # Discard Git metadata left by the former makepkg VCS source.
-  rm -rf .git
-  # Use archive metadata and prevent Git discovery of the enclosing build repo.
-  local timestamp commit
-  read -r timestamp commit < ../source-version
-  sed -i \
-    -e 's/^if(Git_FOUND)/if(FALSE)/' \
-    -e "s/^set(BUILD_NUMBER 0)/set(BUILD_NUMBER ${timestamp})/" \
-    -e "s/^set(BUILD_COMMIT \"unknown\")/set(BUILD_COMMIT \"${commit}\")/" \
-    cmake/build-info.cmake
-
-  cd ..
-
-  ln -sf "${_pkgname}" llama.cpp
+    cd llama.cpp-git
+    printf '%s.%s' "$(git show -s --format=%ct HEAD)" "$(git rev-parse --short HEAD)"
 }
 
 build() {
-  # This may not be set if the user's session
-  # has not restarted on a new 'cuda' install
-  if [[ -z "${NVCC_CCBIN}" ]]; then
-    source /etc/profile
-  fi
-
-  command -v "${aur_llamacpp_cc}" >/dev/null || {
-    printf 'C compiler not found: %s\n' "${aur_llamacpp_cc}" >&2
-    return 2
-  }
-  command -v "${aur_llamacpp_cxx}" >/dev/null || {
-    printf 'C++ compiler not found: %s\n' "${aur_llamacpp_cxx}" >&2
-    return 2
-  }
-  export CC="${aur_llamacpp_cc}"
-  export CXX="${aur_llamacpp_cxx}"
-
-  local _cmake_options=(
-    -B build
-    -S "${_pkgname}"
-    -DCMAKE_BUILD_TYPE=Release
-    -DCMAKE_INSTALL_PREFIX='/usr'
-    -DBUILD_SHARED_LIBS=ON
-    -DLLAMA_BUILD_TESTS=OFF
-    -DGGML_ALL_WARNINGS=OFF
-    -DGGML_ALL_WARNINGS_3RD_PARTY=OFF
-    -DGGML_BUILD_EXAMPLES=OFF
-    -DGGML_BUILD_TESTS=OFF
-    -DGGML_LTO=ON
-    -DGGML_RPC=ON
-    -DGGML_CUDA=ON
-    -DGGML_CUDA_FA_ALL_QUANTS=ON
-    -DLLAMA_BUILD_SERVER=ON
-    -DLLAMA_OPENSSL=ON
-    -DGGML_NCCL=ON
-    -Wno-author
-  )
-
-  if [[ ${aur_llamacpp_build_universal} == true ]]; then
-    echo "Building universal binary [aur_llamacpp_build_universal == true]"
-    _cmake_options+=(
-      -DGGML_BACKEND_DL=ON
-      -DGGML_NATIVE=OFF
-      -DGGML_CPU_ALL_VARIANTS=ON
-    )
-  else
-    # we lose GGML_NATIVE_DEFAULT due to how makepkg includes
-    # $SOURCE_DATE_EPOCH in ENV
-    _cmake_options+=(
-      -DGGML_AVX512=ON
-      -DGGML_AVX512_VBMI=ON
-      -DGGML_AVX512_VNNI=ON
-      -DGGML_AVX512_BF16=ON
-      -DGGML_NATIVE=OFF
-      -DCMAKE_CUDA_ARCHITECTURES="86;89;90"
-      -DCMAKE_C_FLAGS="-O3 -march=znver5 -mtune=znver5"
-      -DCMAKE_CXX_FLAGS="-O3 -march=znver5 -mtune=znver5"
-    )
-  fi
-
-  # Allow user-specified additional flags
-  if [[ -n "${aur_llamacpp_cmakeopts:-}" ]]; then
-    echo "Applying custom CMake options: ${aur_llamacpp_cmakeopts}"
-    # shellcheck disable=SC2206 # intentional word splitting
-    _cmake_options+=(${aur_llamacpp_cmakeopts})
-  fi
-
-  cmake "${_cmake_options[@]}"
-  cmake --build build
+    export PATH="/opt/cuda/bin:$PATH"
+    bash "$srcdir/build-config.sh" "$srcdir/llama.cpp-git" "$srcdir/build"
+    cmake --build "$srcdir/build" --parallel "${BUILD_JOBS:-16}"
 }
 
 package() {
-  DESTDIR="${pkgdir}" cmake --install build
-  install -Dm644 "${_pkgname}/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
-  install -Dm644 "llama.cpp.conf" "${pkgdir}/etc/conf.d/llama.cpp"
-  install -Dm644 "llama.cpp.service" "${pkgdir}/usr/lib/systemd/system/llama.cpp.service"
+    DESTDIR="$pkgdir" cmake --install "$srcdir/build"
+    install -Dm644 "$srcdir/llama.cpp-git/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm644 "$srcdir/llama.cpp.conf" "$pkgdir/etc/conf.d/llama.cpp"
+    install -Dm644 "$srcdir/llama.cpp.service" "$pkgdir/usr/lib/systemd/system/llama.cpp.service"
 }
