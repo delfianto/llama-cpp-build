@@ -1,23 +1,23 @@
 # Maintainer: Bink
-pkgname=llama.cpp-cuda-git
+pkgbase=llama.cpp-cuda-git
+pkgname=(
+    ggml-znver5
+    ggml-cuda-znver5
+    llama.cpp-cuda-git
+)
 pkgver=1.0.0
 pkgrel=1
-pkgdesc='Upstream llama.cpp v1.0.0 for Ryzen 9950X and CUDA SM 86/89, including multimodal tools'
+pkgdesc='Upstream llama.cpp v1.0.0 split packages for Ryzen 9950X and RTX 3000+ CUDA (SM 86/89/120+)'
 arch=(x86_64)
 url='https://github.com/ggml-org/llama.cpp'
 license=(MIT)
-depends=(cuda gcc-libs glibc openssl nccl)
-makedepends=(cmake git ninja)
-optdepends=('ffmpeg: video input in multimodal tools')
-provides=(llama.cpp llama-cpp ggml ggml-cpu ggml-cuda libllama.so libggml.so)
-conflicts=(llama.cpp llama.cpp-cuda llama-cpp llama-cpp-git libggml ggml ggml-cpu ggml-cuda ggml-vulkan)
-backup=(etc/conf.d/llama.cpp)
+makedepends=(cmake git ninja cuda nccl openssl)
 # The profile controls optimization and LTO, regardless of makepkg.conf defaults.
 options=(!buildflags !lto !debug)
 source=('llama.cpp-git::git+https://github.com/ggml-org/llama.cpp.git#tag=v1.0.0'
         build-config.sh llama.cpp.conf llama.cpp.service)
 sha256sums=('SKIP'
-            '3d1e740c044267bf94fa25f5d0b09f34480dc1173905801e7b33a1b97bf9c060'
+            'ec4d9d210a6d9ab79d188d1db1ac75d20285d79bebfca2357fdbccaef918e0d8'
             '53fa70cfe40cb8a3ca432590e4f76561df0f129a31b121c9b4b34af0da7c4d87'
             '0377d08a07bda056785981d3352ccd2dbc0387c4836f91fb73e6b790d836620d')
 
@@ -25,10 +25,55 @@ build() {
     export PATH="/opt/cuda/bin:$PATH"
     bash "$srcdir/build-config.sh" "$srcdir/llama.cpp-git" "$srcdir/build"
     cmake --build "$srcdir/build" --parallel "${BUILD_JOBS:-16}"
+    rm -rf "$srcdir/stage"
+    DESTDIR="$srcdir/stage" cmake --install "$srcdir/build"
 }
 
-package() {
-    DESTDIR="$pkgdir" cmake --install "$srcdir/build"
+package_ggml-znver5() {
+    pkgdesc='Upstream ggml + CPU backend (v1.0.0) for Ryzen 9950X'
+    depends=(gcc-libs glibc)
+    optdepends=('ggml-cuda-znver5: RTX 3000+ CUDA GPU backend')
+    provides=(ggml ggml-cpu libggml.so libggml-base.so)
+    conflicts=(ggml ggml-cpu libggml)
+
+    install -dm755 "$pkgdir/usr/lib/ggml" "$pkgdir/usr/include" "$pkgdir/usr/lib/cmake"
+    cp -a "$srcdir/stage/usr/lib"/libggml.so* "$pkgdir/usr/lib/"
+    cp -a "$srcdir/stage/usr/lib"/libggml-base.so* "$pkgdir/usr/lib/"
+    cp -a "$srcdir/stage/usr/lib/ggml"/libggml-cpu.so* "$pkgdir/usr/lib/ggml/"
+    cp -a "$srcdir/stage/usr/include"/ggml*.h "$srcdir/stage/usr/include"/gguf.h "$pkgdir/usr/include/"
+    cp -a "$srcdir/stage/usr/lib/cmake/ggml" "$pkgdir/usr/lib/cmake/"
+    install -Dm644 "$srcdir/llama.cpp-git/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
+
+package_ggml-cuda-znver5() {
+    pkgdesc='Upstream ggml RTX 3000+ CUDA backend (v1.0.0, SM 86/89/120+) for Ryzen 9950X'
+    depends=(ggml-znver5 cuda gcc-libs glibc nccl)
+    provides=(ggml-cuda)
+    conflicts=(ggml-cuda)
+
+    install -dm755 "$pkgdir/usr/lib/ggml"
+    cp -a "$srcdir/stage/usr/lib/ggml"/libggml-cuda.so* "$pkgdir/usr/lib/ggml/"
+    install -Dm644 "$srcdir/llama.cpp-git/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
+
+package_llama.cpp-cuda-git() {
+    pkgdesc='Upstream llama.cpp v1.0.0 for Ryzen 9950X, including multimodal tools'
+    depends=(ggml-znver5 gcc-libs glibc openssl)
+    optdepends=(
+        'ggml-cuda-znver5: RTX 3000+ CUDA GPU backend'
+        'ffmpeg: video input in multimodal tools'
+    )
+    provides=(llama.cpp llama-cpp libllama.so)
+    conflicts=(llama.cpp llama.cpp-cuda llama-cpp llama-cpp-git)
+    backup=(etc/conf.d/llama.cpp)
+
+    install -dm755 "$pkgdir/usr/lib/cmake" "$pkgdir/usr/lib/pkgconfig" "$pkgdir/usr/include"
+    cp -a "$srcdir/stage/usr/bin" "$pkgdir/usr/"
+    cp -a "$srcdir/stage/usr/lib"/libllama*.so* "$pkgdir/usr/lib/"
+    cp -a "$srcdir/stage/usr/lib"/libmtmd.so* "$pkgdir/usr/lib/"
+    cp -a "$srcdir/stage/usr/include"/llama*.h "$srcdir/stage/usr/include"/mtmd*.h "$pkgdir/usr/include/"
+    cp -a "$srcdir/stage/usr/lib/cmake/llama" "$pkgdir/usr/lib/cmake/"
+    cp -a "$srcdir/stage/usr/lib/pkgconfig/llama.pc" "$pkgdir/usr/lib/pkgconfig/"
     install -Dm644 "$srcdir/llama.cpp-git/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
     install -Dm644 "$srcdir/llama.cpp.conf" "$pkgdir/etc/conf.d/llama.cpp"
     install -Dm644 "$srcdir/llama.cpp.service" "$pkgdir/usr/lib/systemd/system/llama.cpp.service"

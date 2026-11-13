@@ -20,29 +20,68 @@ fetch:
     git -C "{{ mirror }}" update-ref --no-deref HEAD "$commit"
     git -C "{{ mirror }}" log -1 --format='%h %s'
 
-# Build the Arch package from the fetched v1.0.0 tag.
-pkg action="build": fetch
+# Build and optionally install split Arch packages (target: all|ggml|cpu|cuda|llama).
+pkg action="build" target="all": fetch
     #!/usr/bin/env bash
     set -euo pipefail
     mkdir -p .cache/pkg .cache/build
     export SRCDEST="$PWD/.cache" PKGDEST="$PWD/.cache/pkg" BUILDDIR="$PWD/.cache/build"
     case {{ quote(action) }} in
         build|install) ;;
-        *) echo 'Usage: just pkg [build|install]' >&2; exit 2 ;;
+        *) echo 'Usage: just pkg [build|install] [all|ggml|cpu|cuda|llama]' >&2; exit 2 ;;
+    esac
+    case {{ quote(target) }} in
+        all|ggml|cpu|cuda|llama) ;;
+        *) echo 'Usage: just pkg [build|install] [all|ggml|cpu|cuda|llama]' >&2; exit 2 ;;
     esac
     makepkg -D arch --holdver --force
     if [[ {{ quote(action) }} == install ]]; then
-        mapfile -t packages < <(makepkg -D arch --packagelist)
-        sudo pacman -U "${packages[@]}"
+        mapfile -t all_pkgs < <(makepkg -D arch --packagelist)
+        selected=()
+        for p in "${all_pkgs[@]}"; do
+            base=$(basename "$p")
+            case {{ quote(target) }} in
+                all)
+                    selected+=("$p")
+                    ;;
+                ggml|cpu)
+                    [[ $base == ggml-znver5-* ]] && selected+=("$p")
+                    ;;
+                cuda)
+                    [[ $base == ggml-znver5-* || $base == ggml-cuda-znver5-* ]] && selected+=("$p")
+                    ;;
+                llama)
+                    [[ $base == ggml-znver5-* || $base == llama.cpp-cuda-git-* ]] && selected+=("$p")
+                    ;;
+            esac
+        done
+        sudo pacman -U "${selected[@]}"
     fi
 
-# Install the package built from current upstream HEAD.
-install: (pkg "install")
+# Build split packages (alias for `just pkg build`).
+build target="all": (pkg "build" target)
+
+# Build and install split packages (all, ggml/cpu, cuda, or llama).
+install target="all": (pkg "install" target)
+
+# Show expected split package filenames and build status.
+list:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export SRCDEST="$PWD/.cache" PKGDEST="$PWD/.cache/pkg" BUILDDIR="$PWD/.cache/build"
+    mapfile -t packages < <(makepkg -D arch --packagelist)
+    for p in "${packages[@]}"; do
+        if [[ -f "$p" ]]; then
+            printf 'built   %s\n' "$p"
+        else
+            printf 'missing %s\n' "$p"
+        fi
+    done
 
 srcinfo:
     cd arch && makepkg --printsrcinfo > .SRCINFO
 
-# Build one CUDA image using the same native Arch package and toolchain.
+# Build one CUDA image using the split Arch packages and toolchain.
 docker: pkg
     #!/usr/bin/env bash
     set -euo pipefail

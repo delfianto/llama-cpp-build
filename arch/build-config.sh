@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared by makepkg and Docker. This profile is specific to the 9950X + 3060/4080.
+# Shared by makepkg and Docker. Targets Ryzen 9950X (Zen 5) and RTX 3000+ GPUs.
 set -euo pipefail
 cmake -S "$1" -B "$2" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
@@ -11,12 +11,13 @@ cmake -S "$1" -B "$2" -G Ninja \
     -DCMAKE_C_FLAGS="-O3 -march=znver5 -mtune=znver5 -mprefer-vector-width=512" \
     -DCMAKE_CXX_FLAGS="-O3 -march=znver5 -mtune=znver5 -mprefer-vector-width=512" \
     -DCMAKE_CUDA_FLAGS="-Xcompiler=-march=znver5,-mtune=znver5,-mprefer-vector-width=512" \
-    '-DCMAKE_CUDA_ARCHITECTURES=86-real;89-real' \
+    '-DCMAKE_CUDA_ARCHITECTURES=86-real;89-real;120' \
     -DBUILD_SHARED_LIBS=ON \
     -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
     -DGGML_NATIVE=OFF \
     -DGGML_CPU_ALL_VARIANTS=OFF \
-    -DGGML_BACKEND_DL=OFF \
+    -DGGML_BACKEND_DL=ON \
+    -DGGML_BACKEND_DIR=/usr/lib/ggml \
     -DGGML_AVX512=ON \
     -DGGML_AVX512_VBMI=ON \
     -DGGML_AVX512_VNNI=ON \
