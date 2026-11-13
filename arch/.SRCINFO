@@ -1,6 +1,6 @@
 pkgbase = llama.cpp-cuda-git
-	pkgdesc = Upstream llama.cpp HEAD for Ryzen 9950X and CUDA SM 86/89, including multimodal tools
-	pkgver = 1794038487.cf659f2
+	pkgdesc = Upstream llama.cpp v1.0.0 for Ryzen 9950X and CUDA SM 86/89, including multimodal tools
+	pkgver = 1.0.0
 	pkgrel = 1
 	url = https://github.com/ggml-org/llama.cpp
 	arch = x86_64
@@ -34,7 +34,7 @@ pkgbase = llama.cpp-cuda-git
 	options = !lto
 	options = !debug
 	backup = etc/conf.d/llama.cpp
-	source = llama.cpp-git::git+https://github.com/ggml-org/llama.cpp.git#branch=master
+	source = llama.cpp-git::git+https://github.com/ggml-org/llama.cpp.git#tag=v1.0.0
 	source = build-config.sh
 	source = llama.cpp.conf
 	source = llama.cpp.service
