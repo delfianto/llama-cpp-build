@@ -2,7 +2,7 @@
 
 Read the [documentation index](docs/README.md), [Docker and Compose guide](docs/docker.md), or [native build and operation guide](docs/build-and-run.md) for full setup and usage instructions.
 
-Builds unpatched [upstream llama.cpp](https://github.com/ggml-org/llama.cpp) from release tag `v1.0.0` for this workstation:
+Builds unpatched [upstream llama.cpp](https://github.com/ggml-org/llama.cpp) from current `master` HEAD for this workstation:
 
 - AMD Ryzen 9 9950X: GCC `-O3 -march=znver5 -mtune=znver5`, 512-bit vector preference, AVX-512/VBMI/VNNI/BF16, OpenMP, and C/C++ LTO.
 - RTX 3000+ GPUs: CUDA **86-real;89-real;120** (native SASS for RTX 3000 SM 86, RTX 4000 SM 89, and RTX 5000 SM 120, plus PTX `compute_120` for newer architectures).

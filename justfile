@@ -1,23 +1,21 @@
-# Upstream v1.0.0, Zen 5, and only the CUDA GPUs installed in this machine.
+# Upstream HEAD, Zen 5, and only the CUDA GPUs installed in this machine.
 mirror := ".cache/llama.cpp-git"
 source_url := "https://github.com/ggml-org/llama.cpp.git"
-llama_tag := "v1.0.0"
 
 _default:
     @just --list --unsorted
 
-# Fetch upstream v1.0.0 into a shared shallow source cache.
+# Fetch current upstream master into a shared shallow source cache.
 fetch:
     #!/usr/bin/env bash
     set -euo pipefail
     mkdir -p .cache
     if [[ ! -d "{{ mirror }}" ]]; then
-        git clone --bare --depth=1 --single-branch --branch "{{ llama_tag }}" "{{ source_url }}" "{{ mirror }}"
+        git clone --bare --depth=1 --single-branch --branch master "{{ source_url }}" "{{ mirror }}"
     fi
     git -C "{{ mirror }}" remote set-url origin "{{ source_url }}"
-    git -C "{{ mirror }}" fetch --depth=1 --force origin "refs/tags/{{ llama_tag }}:refs/tags/{{ llama_tag }}"
-    commit=$(git -C "{{ mirror }}" rev-parse "refs/tags/{{ llama_tag }}^{commit}")
-    git -C "{{ mirror }}" update-ref --no-deref HEAD "$commit"
+    git -C "{{ mirror }}" fetch --depth=1 --no-tags origin +refs/heads/master:refs/heads/master
+    git -C "{{ mirror }}" symbolic-ref HEAD refs/heads/master
     git -C "{{ mirror }}" log -1 --format='%h %s'
 
 # Build and optionally install split Arch packages (target: all|ggml|cpu|cuda|llama).
@@ -34,7 +32,7 @@ pkg action="build" target="all": fetch
         all|ggml|cpu|cuda|llama) ;;
         *) echo 'Usage: just pkg [build|install] [all|ggml|cpu|cuda|llama]' >&2; exit 2 ;;
     esac
-    makepkg -D arch --holdver --force
+    makepkg -D arch --force
     if [[ {{ quote(action) }} == install ]]; then
         mapfile -t all_pkgs < <(makepkg -D arch --packagelist)
         selected=()

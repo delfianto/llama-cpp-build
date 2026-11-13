@@ -1,6 +1,6 @@
 pkgbase = llama.cpp-cuda-git
-	pkgdesc = Upstream llama.cpp v1.0.0 split packages for Ryzen 9950X and RTX 3000+ CUDA (SM 86/89/120+)
-	pkgver = 1.0.0
+	pkgdesc = Upstream llama.cpp HEAD split packages for Ryzen 9950X and RTX 3000+ CUDA (SM 86/89/120+)
+	pkgver = 1794589971.b79696f
 	pkgrel = 1
 	url = https://github.com/ggml-org/llama.cpp
 	arch = x86_64
@@ -14,7 +14,7 @@ pkgbase = llama.cpp-cuda-git
 	options = !buildflags
 	options = !lto
 	options = !debug
-	source = llama.cpp-git::git+https://github.com/ggml-org/llama.cpp.git#tag=v1.0.0
+	source = llama.cpp-git::git+https://github.com/ggml-org/llama.cpp.git#branch=master
 	source = build-config.sh
 	source = llama.cpp.conf
 	source = llama.cpp.service
@@ -24,7 +24,7 @@ pkgbase = llama.cpp-cuda-git
 	sha256sums = 0377d08a07bda056785981d3352ccd2dbc0387c4836f91fb73e6b790d836620d
 
 pkgname = ggml-znver5
-	pkgdesc = Upstream ggml + CPU backend (v1.0.0) for Ryzen 9950X
+	pkgdesc = Upstream ggml + CPU backend (HEAD) for Ryzen 9950X
 	depends = gcc-libs
 	depends = glibc
 	optdepends = ggml-cuda-znver5: RTX 3000+ CUDA GPU backend
@@ -37,7 +37,7 @@ pkgname = ggml-znver5
 	conflicts = libggml
 
 pkgname = ggml-cuda-znver5
-	pkgdesc = Upstream ggml RTX 3000+ CUDA backend (v1.0.0, SM 86/89/120+) for Ryzen 9950X
+	pkgdesc = Upstream ggml RTX 3000+ CUDA backend (HEAD, SM 86/89/120+) for Ryzen 9950X
 	depends = ggml-znver5
 	depends = cuda
 	depends = gcc-libs
@@ -47,7 +47,7 @@ pkgname = ggml-cuda-znver5
 	conflicts = ggml-cuda
 
 pkgname = llama.cpp-cuda-git
-	pkgdesc = Upstream llama.cpp v1.0.0 for Ryzen 9950X, including multimodal tools
+	pkgdesc = Upstream llama.cpp HEAD for Ryzen 9950X, including multimodal tools
 	depends = ggml-znver5
 	depends = gcc-libs
 	depends = glibc

@@ -5,21 +5,26 @@ pkgname=(
     ggml-cuda-znver5
     llama.cpp-cuda-git
 )
-pkgver=1.0.0
+pkgver=1794589971.b79696f
 pkgrel=1
-pkgdesc='Upstream llama.cpp v1.0.0 split packages for Ryzen 9950X and RTX 3000+ CUDA (SM 86/89/120+)'
+pkgdesc='Upstream llama.cpp HEAD split packages for Ryzen 9950X and RTX 3000+ CUDA (SM 86/89/120+)'
 arch=(x86_64)
 url='https://github.com/ggml-org/llama.cpp'
 license=(MIT)
 makedepends=(cmake git ninja cuda nccl openssl)
 # The profile controls optimization and LTO, regardless of makepkg.conf defaults.
 options=(!buildflags !lto !debug)
-source=('llama.cpp-git::git+https://github.com/ggml-org/llama.cpp.git#tag=v1.0.0'
+source=('llama.cpp-git::git+https://github.com/ggml-org/llama.cpp.git#branch=master'
         build-config.sh llama.cpp.conf llama.cpp.service)
 sha256sums=('SKIP'
             'ec4d9d210a6d9ab79d188d1db1ac75d20285d79bebfca2357fdbccaef918e0d8'
             '53fa70cfe40cb8a3ca432590e4f76561df0f129a31b121c9b4b34af0da7c4d87'
             '0377d08a07bda056785981d3352ccd2dbc0387c4836f91fb73e6b790d836620d')
+
+pkgver() {
+    cd llama.cpp-git
+    printf '%s.%s' "$(git show -s --format=%ct HEAD)" "$(git rev-parse --short HEAD)"
+}
 
 build() {
     export PATH="/opt/cuda/bin:$PATH"
@@ -30,7 +35,7 @@ build() {
 }
 
 package_ggml-znver5() {
-    pkgdesc='Upstream ggml + CPU backend (v1.0.0) for Ryzen 9950X'
+    pkgdesc='Upstream ggml + CPU backend (HEAD) for Ryzen 9950X'
     depends=(gcc-libs glibc)
     optdepends=('ggml-cuda-znver5: RTX 3000+ CUDA GPU backend')
     provides=(ggml ggml-cpu libggml.so libggml-base.so)
@@ -46,7 +51,7 @@ package_ggml-znver5() {
 }
 
 package_ggml-cuda-znver5() {
-    pkgdesc='Upstream ggml RTX 3000+ CUDA backend (v1.0.0, SM 86/89/120+) for Ryzen 9950X'
+    pkgdesc='Upstream ggml RTX 3000+ CUDA backend (HEAD, SM 86/89/120+) for Ryzen 9950X'
     depends=(ggml-znver5 cuda gcc-libs glibc nccl)
     provides=(ggml-cuda)
     conflicts=(ggml-cuda)
@@ -57,7 +62,7 @@ package_ggml-cuda-znver5() {
 }
 
 package_llama.cpp-cuda-git() {
-    pkgdesc='Upstream llama.cpp v1.0.0 for Ryzen 9950X, including multimodal tools'
+    pkgdesc='Upstream llama.cpp HEAD for Ryzen 9950X, including multimodal tools'
     depends=(ggml-znver5 gcc-libs glibc openssl)
     optdepends=(
         'ggml-cuda-znver5: RTX 3000+ CUDA GPU backend'
