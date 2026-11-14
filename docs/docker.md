@@ -1,6 +1,6 @@
 # Docker and Compose
 
-The image runs the same package compiled on this workstation. It targets the Ryzen 9950X and CUDA SM 86/89 for the RTX 3060 and 4080. Containerization does not make those binaries portable.
+The image runs the same split packages compiled on this workstation. It targets the Ryzen 9950X (Zen 5) and CUDA SM 86/89/120+ for RTX 3000+ GPUs. Containerization does not make those binaries portable.
 
 ## Host setup
 
@@ -34,11 +34,11 @@ BUILD_JOBS=8 just docker
 `just docker` does the following:
 
 1. Fetch upstream `master` HEAD into `.cache/llama.cpp-git/`.
-2. Build the native Arch package with the Zen 5/CUDA profile.
-3. Copy the selected package into `.cache/docker/`, removing older packages from that staging directory.
+2. Build the native split Arch packages (`ggml-znver5`, `ggml-cuda-znver5`, `llama.cpp-cuda-git`) with the Zen 5/CUDA profile.
+3. Copy the selected packages into `.cache/docker/`, removing older packages from that staging directory.
 4. Build `ghcr.io/delfianto/llama.cpp:cuda` from [docker/Dockerfile](../docker/Dockerfile).
 
-The Dockerfile uses `archlinux:latest`, installs CUDA/NCCL/OpenSSL from Arch repositories, then installs the staged package and entrypoint. Compilation happens on the host. Building this image does not install the package on the host, restart a server, or publish an image.
+The Dockerfile uses `archlinux:latest`, installs CUDA/NCCL/OpenSSL from Arch repositories, then installs the staged split packages and entrypoint. Compilation happens on the host. Building this image does not install the packages on the host, restart a server, or publish an image.
 
 The first build downloads the toolkit dependencies into the image and can use substantial disk space. Later builds reuse Docker layers when their inputs match. The [Dockerfile-specific ignore file](../docker/Dockerfile.dockerignore) limits the context to the staged package and entrypoint, so model files and compiler work trees are not sent into the image.
 
@@ -68,11 +68,11 @@ done
 rm -f .cache/docker/*.pkg.tar.zst
 cp "${package_paths[@]}" .cache/docker/
 docker build -f docker/Dockerfile \
-  --build-arg LLAMA_SHA=cf659f240b232e15700b1721bbb43c1d973c52e9 \
+  --build-arg LLAMA_SHA=b79696f1f556cb30b0c184838115007d929baca8 \
   -t ghcr.io/delfianto/llama.cpp:cuda .
 ```
 
-The SHA above belongs to the verified baseline package. Replace it with the full source commit of the artifact you selected. Do not use a freshly fetched mirror's HEAD to label an older package. `--packagelist` selects the version currently recorded in `arch/PKGBUILD`; if that artifact is absent, build it or explicitly select an existing package and its matching source revision.
+Replace `LLAMA_SHA` with the full source commit of the artifacts you selected. Do not use a freshly fetched mirror's HEAD to label older packages. `--packagelist` selects the version currently recorded in `arch/PKGBUILD`; if those artifacts are absent, build them or explicitly select existing packages and their matching source revision.
 
 The upstream SHA does not identify a reproducible container dependency set: `archlinux:latest` and Arch repositories move independently. Record the image ID or tag a retained image when preserving a working deployment.
 
@@ -218,7 +218,7 @@ To roll back, set the service's `image` to `llama.cpp:previous` and recreate it.
 | CUDA out of memory | Inspect `nvidia-smi`; lower context/parallelism, use supported quantized KV, adjust placement, or choose a smaller model |
 | Port 8080 already allocated | Stop the other listener or publish another host port, such as `127.0.0.1:8081:8080` |
 | Custom template error | Keep `--jinja` enabled; the wrapper enables it by default |
-| Docker COPY cannot find the package | Use `just docker`, or stage exactly one selected package in `.cache/docker/` before building manually |
+| Docker COPY cannot find the package | Use `just docker`, or stage the selected split packages in `.cache/docker/` before building manually |
 | Driver/toolkit compatibility error | Compare the host driver with the CUDA toolkit installed in the image; rebuilding against rolling repositories can change CUDA |
 | API client cannot connect | Check the port mapping, internal listener, container state, and startup logs before sending requests |
 

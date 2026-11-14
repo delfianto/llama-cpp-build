@@ -20,13 +20,21 @@ sudo pacman -S --needed base-devel git just cmake ninja cuda nccl openssl
 GCC must understand `znver5` and be supported by the installed CUDA toolkit. The current machine has GCC 16.2 and CUDA 13.4; compiler version checks stay enabled.
 
 ```sh
-just pkg          # fetch upstream HEAD and build
-just pkg install  # fetch/build HEAD and install with pacman
-just install      # alias for just pkg install
-just verify       # syntax, formatting, package metadata
+just pkg                  # fetch upstream HEAD and build all split packages
+just pkg install          # fetch/build HEAD and install all split packages
+just build [target]       # build all|ggml|cpu|cuda|llama
+just install [target]     # install all|ggml|cpu|cuda|llama
+just list                 # show expected split package filenames and build status
+just verify               # syntax, formatting, package metadata
 ```
 
-Packages go to `.cache/pkg/`, build trees to `.cache/build/`, and the shared shallow Git cache to `.cache/llama.cpp-git/`. `just fetch` refreshes that cache. `makepkg --holdver` then builds precisely that fetched commit, with its hash included in the package version and binary build info. The PKGBUILD also works directly with `cd arch && makepkg`; that path uses makepkg's normal VCS fetching.
+`arch/PKGBUILD` produces three split packages:
+
+- `ggml-znver5` — `libggml.so`, `libggml-base.so`, and the Zen 5 CPU backend (`libggml-cpu.so`).
+- `ggml-cuda-znver5` — RTX 3000+ CUDA GPU backend (`libggml-cuda.so`, SM `86-real;89-real;120`).
+- `llama.cpp-cuda-git` — `llama-server`, CLI/benchmark/quantization tools, `libllama`, `libmtmd`, and systemd unit.
+
+Packages go to `.cache/pkg/`, build trees to `.cache/build/`, and the shared shallow Git cache to `.cache/llama.cpp-git/`. `just fetch` refreshes that cache. `makepkg` builds precisely that fetched commit, with its timestamp and short hash included in `pkgver` and binary build info. Running `cd arch && makepkg` directly also works via makepkg's normal VCS fetching.
 
 Compilation defaults to 16 concurrent jobs to leave memory for CUDA template compilation and other running workloads. Override with `BUILD_JOBS=8 just pkg`. `just clean` removes builds and packages while keeping downloaded source.
 
@@ -51,4 +59,4 @@ Edit [docker/compose.example.yml](docker/compose.example.yml) with the model and
 
 Container environment: `MODEL_PATH` (required), `MMPROJ_PATH` (optional), `CTX_SIZE` (8192), `N_GPU_LAYERS` (-1), `THREADS` (16), `HOST` (0.0.0.0), `PORT` (8080). Additional command arguments are passed directly to `llama-server`.
 
-Validated on this workstation on 2026-11-07 at upstream commit `cf659f240b232e15700b1721bbb43c1d973c52e9` with GCC 16.2.1 and CUDA 13.4.92: package build/install-tree checks, inference with Flash Attention on each GPU, and a Gemma E2B image request through the packaged server's `/v1/chat/completions` endpoint (HTTP 200). `cuobjdump` confirmed only SM 86/89 code and no embedded PTX in `libggml-cuda`. Dockerfile and Compose configuration checks passed; the container image was not built during this validation.
+The local package cache currently holds split packages built at upstream commit `b79696f1f556cb30b0c184838115007d929baca8`. Run `just verify` to check shell scripts, `justfile` formatting, and `.SRCINFO` consistency.

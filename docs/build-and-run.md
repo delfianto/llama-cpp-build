@@ -1,6 +1,6 @@
 # Native builds and operation
 
-This repository builds upstream llama.cpp from Git HEAD for the Ryzen 9950X and RTX 4080/3060. Run these commands from the repository root as your normal user; `makepkg` refuses to build as root.
+This repository builds upstream llama.cpp from Git HEAD for the Ryzen 9950X (Zen 5) and RTX 3000+ CUDA GPUs (SM 86/89/120+). Run these commands from the repository root as your normal user; `makepkg` refuses to build as root.
 
 ## Dependencies and build
 
@@ -9,11 +9,11 @@ sudo pacman -S --needed base-devel git just cmake ninja cuda nccl openssl
 just pkg
 ```
 
-The [build profile](../arch/build-config.sh) sets GCC `-O3`, `-march=znver5`, `-mtune=znver5`, a 512-bit vector preference, AVX-512/VBMI/VNNI/BF16, OpenMP, and LTO. CUDA targets are exactly `86-real;89-real`, with no embedded PTX fallback. CUDA graphs, all supported Flash Attention KV quant combinations, NCCL, server/tools, and multimodal support are enabled. Other accelerator backends and RPC are disabled.
+The [build profile](../arch/build-config.sh) sets GCC `-O3`, `-march=znver5`, `-mtune=znver5`, a 512-bit vector preference, AVX-512/VBMI/VNNI/BF16, OpenMP, and LTO. CUDA targets are `86-real;89-real;120` (native SASS for RTX 3000 SM 86, RTX 4000 SM 89, and RTX 5000 SM 120, plus PTX `compute_120` for newer architectures). CUDA graphs, all supported Flash Attention KV quant combinations, NCCL, server/tools, and multimodal support are enabled. Other accelerator backends and RPC are disabled.
 
 The CPU backend remains necessary for host work and operations not offloaded to CUDA. The profile's explicit Zen 5 flags are why `GGML_NATIVE=OFF` does not imply a generic CPU build.
 
-GCC must support `znver5` and satisfy the installed CUDA host-compiler checks. The verified toolchain is GCC 16.2.1 with CUDA 13.4.92. Do not bypass compiler compatibility checks to hide a toolchain mismatch.
+GCC must support `znver5` and satisfy the installed CUDA host-compiler checks. Do not bypass compiler compatibility checks to hide a toolchain mismatch.
 
 The default is 16 concurrent jobs. All Flash Attention quant combinations take time to compile:
 
@@ -21,12 +21,25 @@ The default is 16 concurrent jobs. All Flash Attention quant combinations take t
 BUILD_JOBS=8 just pkg
 ```
 
+## Split packages
+
+`arch/PKGBUILD` builds three split packages:
+
+| Package | Contents |
+| --- | --- |
+| `ggml-znver5` | `libggml.so`, `libggml-base.so`, Zen 5 `libggml-cpu.so`, headers, CMake config |
+| `ggml-cuda-znver5` | `libggml-cuda.so` (RTX 3000+ CUDA backend) |
+| `llama.cpp-cuda-git` | `llama-server`, CLI/quant/bench/mtmd tools, `libllama`, `libmtmd`, systemd unit |
+
+Both `just build [target]` and `just install [target]` accept `all` (default), `ggml`/`cpu`, `cuda`, or `llama`.
+
 ## Source and version tracking
 
-`just pkg` fetches current upstream `master` into the shallow bare repository `.cache/llama.cpp-git/`. It invokes `makepkg --holdver`, which builds the fetched revision rather than doing a second remote update. The package version contains the source commit timestamp and short hash. `makepkg` updates `arch/PKGBUILD`'s `pkgver` when that revision changes.
+`just pkg` fetches current upstream `master` into the shallow bare repository `.cache/llama.cpp-git/` and runs `makepkg -D arch --force`. The package version contains the source commit timestamp and short hash, and `makepkg` updates `arch/PKGBUILD`'s `pkgver` when that revision changes.
 
 ```sh
 git -C .cache/llama.cpp-git log -1 --format='%H %s'
+just list
 just srcinfo
 just verify
 ```
@@ -37,21 +50,25 @@ Because the source checkout is shallow, the binary's upstream build count can be
 
 Running `cd arch && makepkg` directly also works, but uses makepkg's ordinary VCS fetching and output paths instead of the repository's shallow-cache workflow.
 
-## Install a package
+## Install packages
 
 ```sh
 just pkg install
-# Equivalent alias:
-just install
+# Or by target (all|ggml|cpu|cuda|llama):
+just install all
+just install llama
 ```
 
-Both fetch/build current upstream HEAD before invoking `sudo pacman -U`. To install an existing artifact without fetching a new revision, use its explicit path:
+Both fetch and build current upstream HEAD before invoking `sudo pacman -U`. To install existing artifacts without fetching a new revision, pass the matching split package files to `pacman -U`:
 
 ```sh
-sudo pacman -U .cache/pkg/llama.cpp-cuda-git-1794038487.cf659f2-1-x86_64.pkg.tar.zst
+sudo pacman -U \
+  .cache/pkg/ggml-znver5-*.pkg.tar.zst \
+  .cache/pkg/ggml-cuda-znver5-*.pkg.tar.zst \
+  .cache/pkg/llama.cpp-cuda-git-*.pkg.tar.zst
 ```
 
-That filename is the verified baseline; choose the actual file for another revision. The package conflicts with the separately packaged llama.cpp/ggml variants it replaces, including ggml-cuda and ggml-vulkan. Review pacman's transaction before accepting it.
+Check `just list` to see the exact filenames expected for the current `PKGBUILD`. The packages conflict with separately packaged `llama.cpp`/`ggml` variants they replace, including `ggml-cuda` and `ggml-vulkan`. Review pacman's transaction before accepting it.
 
 Installation does not restart an existing server. A process already running can retain its old loaded binaries and libraries until restarted.
 

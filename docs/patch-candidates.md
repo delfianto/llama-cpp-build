@@ -1,6 +1,6 @@
 # Experimental patch candidates
 
-Research snapshot: 2026-11-07. Baseline: upstream `cf659f240b232e15700b1721bbb43c1d973c52e9`, build-recipe commit `51fb53f`. Target: Ryzen 9 9950X, RTX 4080 (SM 89), RTX 3060 (SM 86). PR state and branch tips were read from GitHub; applicability was checked locally against the baseline using `git apply --check` on the per-file PR diffs. These are source applicability checks, not compilation, correctness, or performance results. The baseline source and build profile remain unchanged.
+Research snapshot: 2026-11-07. Baseline at snapshot: upstream `cf659f240b232e15700b1721bbb43c1d973c52e9`, build-recipe commit `51fb53f` (note: the current build profile has since moved to split packages and `86-real;89-real;120`). Target: Ryzen 9 9950X, RTX 4080 (SM 89), RTX 3060 (SM 86). PR state and branch tips were read from GitHub; applicability was checked locally against the baseline using `git apply --check` on the per-file PR diffs. These are source applicability checks, not compilation, correctness, or performance results. The baseline source and build profile remain unchanged.
 
 | Priority | Candidate | Local applicability | Main condition |
 | --- | --- | --- | --- |
